@@ -8,7 +8,9 @@
 VALUE bt_module;
 VALUE bt_device_class;
 VALUE bt_devices_class;
+VALUE bt_socket_class;
 VALUE bt_rfcomm_socket_class;
+VALUE bt_l2cap_socket_class;
 
 // The initialization method for this module
 void Init_ruby_bluez()
@@ -17,16 +19,48 @@ void Init_ruby_bluez()
   bt_device_class = rb_define_class_under(bt_module, "Device", rb_cObject);
   bt_devices_class = rb_define_class_under(bt_module, "Devices", rb_cObject);
 
-  bt_rfcomm_socket_class = rb_define_class_under(bt_module, "RFCOMMSocket", rb_cIO);
+  bt_socket_class = rb_define_class_under(bt_module, "BluetoothSocket", rb_cIO);
+  rb_define_method(bt_socket_class, "inspect", bt_socket_inspect, 0);
+  rb_define_method(bt_socket_class, "for_fd", bt_socket_s_for_fd, 1);
+  rb_undef_method(bt_socket_class, "initialize");
+
+  bt_rfcomm_socket_class = rb_define_class_under(bt_module, "RFCOMMSocket", bt_socket_class);
   rb_define_method(bt_rfcomm_socket_class, "initialize", bt_rfcomm_socket_init, -1);
-  rb_define_method(bt_rfcomm_socket_class, "inspect", bt_rfcomm_socket_inspect, 0);
   rb_define_method(bt_rfcomm_socket_class, "connect", bt_rfcomm_socket_connect, 2);
-  rb_define_method(bt_rfcomm_socket_class, "for_fd", bt_rfcomm_socket_s_for_fd, 1);
+
+  bt_l2cap_socket_class = rb_define_class_under(bt_module, "L2CAPSocket", bt_socket_class);
+  rb_define_method(bt_l2cap_socket_class, "initialize", bt_l2cap_socket_init, -1);
+  rb_define_method(bt_l2cap_socket_class, "connect", bt_l2cap_socket_connect, 2);
 
   rb_define_singleton_method(bt_devices_class, "scan", bt_devices_scan, 0);
   rb_define_singleton_method(bt_device_class, "new", bt_device_new, 2);
   rb_define_attr(bt_device_class, "addr", Qtrue, Qfalse);
   rb_define_attr(bt_device_class, "name", Qtrue, Qfalse);
+}
+
+static VALUE
+bt_l2cap_socket_connect(VALUE self, VALUE host, VALUE port)
+{
+    OpenFile *fptr;
+	int fd;
+
+	GetOpenFile(self, fptr);
+	fd = fileno(fptr->f);
+
+    struct sockaddr_l2 addr = { 0 };
+    char *dest = STR2CSTR(host);
+
+    // set the connection parameters (who to connect to)
+    addr.l2_family = AF_BLUETOOTH;
+    addr.l2_psm = (uint8_t) FIX2UINT(port);
+    str2ba( dest, &addr.l2_bdaddr );
+
+    // connect to server
+    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+      rb_sys_fail("connect(2)");
+	}
+
+	return INT2FIX(0);
 }
 
 static VALUE
@@ -55,7 +89,7 @@ bt_rfcomm_socket_connect(VALUE self, VALUE host, VALUE port)
 }
 
 static VALUE
-bt_rfcomm_socket_s_for_fd(VALUE klass, VALUE fd)
+bt_socket_s_for_fd(VALUE klass, VALUE fd)
 {
   OpenFile *fptr;
   VALUE sock = bt_init_sock(rb_obj_alloc(klass), NUM2INT(fd));
@@ -64,7 +98,7 @@ bt_rfcomm_socket_s_for_fd(VALUE klass, VALUE fd)
   return sock;
 }
 
-static VALUE bt_rfcomm_socket_inspect(VALUE self)
+static VALUE bt_socket_inspect(VALUE self)
 {
   return self;
 }
@@ -104,6 +138,17 @@ bt_init_sock(VALUE sock, int fd)
 static VALUE bt_rfcomm_socket_init(int argc, VALUE *argv, VALUE sock)
 {
   int fd = bt_ruby_socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
+  if (fd < 0) {
+    rb_sys_fail("socket(2) - bt");
+  }
+  VALUE ret = bt_init_sock(sock, fd);
+  return ret;
+}
+
+// Initialization of a L2CAP socket
+static VALUE bt_l2cap_socket_init(int argc, VALUE *argv, VALUE sock)
+{
+  int fd = bt_ruby_socket(AF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_L2CAP);
   if (fd < 0) {
     rb_sys_fail("socket(2) - bt");
   }
