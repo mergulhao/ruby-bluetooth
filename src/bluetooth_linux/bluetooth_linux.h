@@ -7,7 +7,7 @@
 #include <bluetooth/hci_lib.h>
 
 // Prototype for the initialization method - Ruby calls this, not you
-void Init_ruby_bluez();
+void Init_ruby_bluetooth();
 
 struct bluetooth_device_struct
   {

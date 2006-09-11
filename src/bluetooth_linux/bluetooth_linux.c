@@ -1,9 +1,9 @@
 // Include the Ruby headers and goodies
-#include "ruby.h"
-#include "rubyio.h"
-#include "rubysig.h"
-#include "util.h"
-#include "ruby_bluez.h"
+#include <ruby.h>
+#include <rubyio.h>
+#include <rubysig.h>
+#include <util.h>
+#include "bluetooth_linux.h"
 
 VALUE bt_module;
 VALUE bt_device_class;
@@ -13,7 +13,7 @@ VALUE bt_rfcomm_socket_class;
 VALUE bt_l2cap_socket_class;
 
 // The initialization method for this module
-void Init_ruby_bluez()
+void Init_ruby_bluetooth()
 {
   bt_module = rb_define_module("Bluetooth");
   bt_device_class = rb_define_class_under(bt_module, "Device", rb_cObject);

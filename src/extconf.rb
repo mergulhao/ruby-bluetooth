@@ -2,12 +2,17 @@
 require 'mkmf'
 
 # Give it a name
-extension_name = 'ruby_bluez'
+extension_name = 'ruby_bluetooth'
 
-$libs = "-lbluetooth " + $libs
-
-# The destination
 dir_config(extension_name)
 
-# Do the work
-create_makefile(extension_name)
+case RUBY_PLATFORM
+  when /linux/
+    if have_library('bluetooth')
+      create_makefile(extension_name, 'bluetooth_linux')
+    end
+  when /darwin/
+#    if have_library('objc')
+      create_makefile(extension_name, 'bluetooth_macosx')
+#    end
+end
