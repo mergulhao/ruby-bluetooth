@@ -12,7 +12,7 @@ case RUBY_PLATFORM
       create_makefile(extension_name, 'bluetooth_linux')
     end
   when /darwin/
-#    if have_library('objc')
       create_makefile(extension_name, 'bluetooth_macosx')
-#    end
+  when /(win32|mingw32)/
+      create_makefile(extension_name, 'bluetooth_win32')
 end

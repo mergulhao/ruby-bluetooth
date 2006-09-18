@@ -56,10 +56,6 @@ static VALUE bt_devices_scan(VALUE self)
 
 @implementation BluetoothDeviceScanner
 
-//===========================================================================================================================
-// deviceInquiryDeviceFound
-//===========================================================================================================================
-
 - (void)    deviceInquiryDeviceFound:(IOBluetoothDeviceInquiry*)sender  device:(IOBluetoothDevice*)device
 {
     const BluetoothDeviceAddress* addressPtr = [device getAddress];
@@ -89,8 +85,7 @@ static VALUE bt_devices_scan(VALUE self)
 
     _inquiry = [IOBluetoothDeviceInquiry    inquiryWithDelegate:self];
 
-	// Should clear array, not simply create a new one
-	_foundDevices = rb_ary_new();
+	rb_ary_clear(_foundDevices);
 
     status = [_inquiry  start];
     if( status == kIOReturnSuccess )
@@ -102,10 +97,6 @@ static VALUE bt_devices_scan(VALUE self)
     return( status );
 }
 
-//===========================================================================================================================
-// stopSearch
-//===========================================================================================================================
-
 -(void)stopSearch
 {
     if( _inquiry )
@@ -115,9 +106,6 @@ static VALUE bt_devices_scan(VALUE self)
         _inquiry = nil;
     }
 }
-//===========================================================================================================================
-// deviceInquiryComplete
-//===========================================================================================================================
 
 - (void)    deviceInquiryComplete:(IOBluetoothDeviceInquiry*)sender error:(IOReturn)error   aborted:(BOOL)aborted
 {
