@@ -14,5 +14,7 @@ case RUBY_PLATFORM
   when /darwin/
       create_makefile(extension_name, 'bluetooth_macosx')
   when /(win32|mingw32)/
+    if find_header('Ws2bth.h', 'c:\archiv~1\micros~2\include')
       create_makefile(extension_name, 'bluetooth_win32')
+    end
 end
