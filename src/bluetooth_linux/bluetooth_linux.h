@@ -23,13 +23,13 @@ static int bt_ruby_socket(int domain, int type, int proto);
 
 static VALUE bt_init_sock(VALUE sock, int fd);
 
-static VALUE bt_rfcomm_socket_init(int argc, VALUE *argv, VALUE sock);
-
 static VALUE bt_socket_inspect(VALUE self);
 
-static VALUE bt_rfcomm_socket_connect(VALUE sock, VALUE host, VALUE port);
-
 static VALUE bt_socket_s_for_fd(VALUE klass, VALUE fd);
+
+static VALUE bt_rfcomm_socket_init(int argc, VALUE *argv, VALUE sock);
+
+static VALUE bt_rfcomm_socket_connect(VALUE sock, VALUE host, VALUE port);
 
 static VALUE bt_l2cap_socket_init(int argc, VALUE *argv, VALUE sock);
 
