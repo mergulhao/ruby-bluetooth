@@ -59,12 +59,20 @@ void Init_ruby_bluetooth()
 }
 
 static VALUE bt_service_register(VALUE self) {
-	rb_iv_set(self, "@registered", Qtrue);
+	VALUE registered = rb_iv_get(self, "@registered");
+	if (registered == Qfalse) {
+		// Do something
+		rb_iv_set(self, "@registered", Qtrue);
+	}
 	return Qnil;
 }
 
 static VALUE bt_service_registered(VALUE self) {
-	return rb_iv_get(self, "@registered");
+	VALUE registered = rb_iv_get(self, "@registered");
+	if (registered == Qtrue) {
+		// Do something
+	}
+	return registered;
 }
 
 static VALUE bt_service_new(VALUE self, VALUE uuid, VALUE name, VALUE description, VALUE provider) {
