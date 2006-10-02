@@ -15,6 +15,13 @@ struct bluetooth_device_struct
     VALUE name;
   };
 
+struct bluetooth_service_struct
+  {
+    VALUE name;
+    VALUE description;
+    VALUE provider;
+  };
+
 static VALUE bt_device_new(VALUE self, VALUE name, VALUE addr);
 
 static VALUE bt_devices_scan(VALUE self);
@@ -34,3 +41,5 @@ static VALUE bt_rfcomm_socket_connect(VALUE sock, VALUE host, VALUE port);
 static VALUE bt_l2cap_socket_init(int argc, VALUE *argv, VALUE sock);
 
 static VALUE bt_l2cap_socket_connect(VALUE sock, VALUE host, VALUE port);
+
+static VALUE bt_service_new(VALUE self, VALUE name, VALUE description, VALUE provider);

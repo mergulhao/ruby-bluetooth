@@ -11,6 +11,7 @@ VALUE bt_devices_class;
 VALUE bt_socket_class;
 VALUE bt_rfcomm_socket_class;
 VALUE bt_l2cap_socket_class;
+VALUE bt_service_class;
 
 // The initialization method for this module
 void Init_ruby_bluetooth()
@@ -36,6 +37,26 @@ void Init_ruby_bluetooth()
   rb_define_singleton_method(bt_device_class, "new", bt_device_new, 2);
   rb_define_attr(bt_device_class, "addr", Qtrue, Qfalse);
   rb_define_attr(bt_device_class, "name", Qtrue, Qfalse);
+  
+  bt_service_class = rb_define_class_under(bt_module, "Service", rb_cObject);
+  rb_define_singleton_method(bt_service_class, "new", bt_service_new, 3);
+  rb_define_attr(bt_device_class, "name", Qtrue, Qfalse);
+  rb_define_attr(bt_device_class, "description", Qtrue, Qfalse); 
+  rb_define_attr(bt_device_class, "provider", Qtrue, Qfalse); 
+}
+
+static VALUE bt_service_new(VALUE self, VALUE name, VALUE description, VALUE provider) {
+  struct bluetooth_service_struct *bss;
+
+  VALUE obj = Data_Make_Struct(self,
+                               struct bluetooth_service_struct, NULL,
+                               free, bss);
+
+  rb_iv_set(obj, "@name", name);
+  rb_iv_set(obj, "@description", description);
+  rb_iv_set(obj, "@provider", provider);
+
+  return obj;
 }
 
 static VALUE
