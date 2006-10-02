@@ -46,13 +46,25 @@ void Init_ruby_bluetooth()
     rb_undef_method(bt_services_class, "initialize");
 
     bt_service_class = rb_define_class_under(bt_module, "Service", rb_cObject);
-    rb_define_singleton_method(bt_service_class, "new", bt_service_new, 3);
+    rb_define_singleton_method(bt_service_class, "new", bt_service_new, 4);
     rb_define_method(bt_service_class, "register", bt_service_register, 0);
     rb_define_method(bt_service_class, "unregister", bt_service_unregister, 0);
     rb_define_attr(bt_service_class, "uuid", Qtrue, Qfalse);
     rb_define_attr(bt_service_class, "name", Qtrue, Qfalse);
     rb_define_attr(bt_service_class, "description", Qtrue, Qfalse);
     rb_define_attr(bt_service_class, "provider", Qtrue, Qfalse);
+
+    rb_define_method(bt_service_class, "registered?", bt_service_registered, 0);
+
+}
+
+static VALUE bt_service_register(VALUE self) {
+	rb_iv_set(self, "@registered", Qtrue);
+	return Qnil;
+}
+
+static VALUE bt_service_registered(VALUE self) {
+	return rb_iv_get(self, "@registered");
 }
 
 static VALUE bt_service_new(VALUE self, VALUE uuid, VALUE name, VALUE description, VALUE provider) {
@@ -66,6 +78,7 @@ static VALUE bt_service_new(VALUE self, VALUE uuid, VALUE name, VALUE descriptio
     rb_iv_set(obj, "@name", name);
     rb_iv_set(obj, "@description", description);
     rb_iv_set(obj, "@provider", provider);
+    rb_iv_set(obj, "@registered", Qfalse);
 
     return obj;
 }

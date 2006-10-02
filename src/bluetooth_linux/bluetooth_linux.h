@@ -17,9 +17,11 @@ struct bluetooth_device_struct
 
 struct bluetooth_service_struct
 {
+    VALUE uuid;
     VALUE name;
     VALUE description;
     VALUE provider;
+    VALUE registered;
 };
 
 static VALUE bt_device_new(VALUE self, VALUE name, VALUE addr);
@@ -47,3 +49,6 @@ static VALUE bt_service_new(VALUE self, VALUE uuid, VALUE name, VALUE descriptio
 static VALUE bt_service_register(VALUE self);
 
 static VALUE bt_service_unregister(VALUE self);
+
+static VALUE bt_service_registered(VALUE self);
+
