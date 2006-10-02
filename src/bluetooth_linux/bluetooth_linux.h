@@ -42,7 +42,7 @@ static VALUE bt_l2cap_socket_init(int argc, VALUE *argv, VALUE sock);
 
 static VALUE bt_l2cap_socket_connect(VALUE sock, VALUE host, VALUE port);
 
-static VALUE bt_service_new(VALUE self, VALUE name, VALUE description, VALUE provider);
+static VALUE bt_service_new(VALUE self, VALUE uuid, VALUE name, VALUE description, VALUE provider);
 
 static VALUE bt_service_register(VALUE self);
 

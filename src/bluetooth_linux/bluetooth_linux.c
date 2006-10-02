@@ -49,18 +49,20 @@ void Init_ruby_bluetooth()
     rb_define_singleton_method(bt_service_class, "new", bt_service_new, 3);
     rb_define_method(bt_service_class, "register", bt_service_register, 0);
     rb_define_method(bt_service_class, "unregister", bt_service_unregister, 0);
+    rb_define_attr(bt_service_class, "uuid", Qtrue, Qfalse);
     rb_define_attr(bt_service_class, "name", Qtrue, Qfalse);
     rb_define_attr(bt_service_class, "description", Qtrue, Qfalse);
     rb_define_attr(bt_service_class, "provider", Qtrue, Qfalse);
 }
 
-static VALUE bt_service_new(VALUE self, VALUE name, VALUE description, VALUE provider) {
+static VALUE bt_service_new(VALUE self, VALUE uuid, VALUE name, VALUE description, VALUE provider) {
     struct bluetooth_service_struct *bss;
 
     VALUE obj = Data_Make_Struct(self,
                                  struct bluetooth_service_struct, NULL,
                                  free, bss);
 
+    rb_iv_set(obj, "@uuid", name);
     rb_iv_set(obj, "@name", name);
     rb_iv_set(obj, "@description", description);
     rb_iv_set(obj, "@provider", provider);
