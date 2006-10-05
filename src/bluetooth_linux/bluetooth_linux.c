@@ -31,11 +31,14 @@ void Init_ruby_bluetooth()
     bt_socket_class = rb_define_class_under(bt_module, "BluetoothSocket", rb_cIO);
     rb_define_method(bt_socket_class, "inspect", bt_socket_inspect, 0);
     rb_define_method(bt_socket_class, "for_fd", bt_socket_s_for_fd, 1);
+    rb_define_method(bt_socket_class, "listen", bt_socket_listen, 1);
     rb_undef_method(bt_socket_class, "initialize");
 
     bt_rfcomm_socket_class = rb_define_class_under(bt_module, "RFCOMMSocket", bt_socket_class);
     rb_define_method(bt_rfcomm_socket_class, "initialize", bt_rfcomm_socket_init, -1);
     rb_define_method(bt_rfcomm_socket_class, "connect", bt_rfcomm_socket_connect, 2);
+    rb_define_method(bt_rfcomm_socket_class, "accept", bt_rfcomm_socket_accept, 0);
+    rb_define_method(bt_rfcomm_socket_class, "bind", bt_rfcomm_socket_bind, 1);
 
     bt_l2cap_socket_class = rb_define_class_under(bt_module, "L2CAPSocket", bt_socket_class);
     rb_define_method(bt_l2cap_socket_class, "initialize", bt_l2cap_socket_init, -1);
@@ -47,7 +50,7 @@ void Init_ruby_bluetooth()
 
     bt_service_class = rb_define_class_under(bt_module, "Service", rb_cObject);
     rb_define_singleton_method(bt_service_class, "new", bt_service_new, 4);
-    rb_define_method(bt_service_class, "register", bt_service_register, 0);
+    rb_define_method(bt_service_class, "register", bt_service_register, 1);
     rb_define_method(bt_service_class, "unregister", bt_service_unregister, 0);
     rb_define_attr(bt_service_class, "uuid", Qtrue, Qfalse);
     rb_define_attr(bt_service_class, "name", Qtrue, Qfalse);
@@ -58,21 +61,135 @@ void Init_ruby_bluetooth()
 
 }
 
-static VALUE bt_service_register(VALUE self) {
-	VALUE registered = rb_iv_get(self, "@registered");
-	if (registered == Qfalse) {
-		// Do something
-		rb_iv_set(self, "@registered", Qtrue);
-	}
-	return Qnil;
+static VALUE bt_rfcomm_socket_accept(VALUE self) {
+    OpenFile *fptr;
+    VALUE sock2;
+    char buf[1024];
+    socklen_t len = sizeof(buf);
+
+    //	struct sockaddr_rc rcaddr;
+    //	addr_len = sizeof(rcaddr);
+
+    GetOpenFile(self, fptr);
+    //sock2 = s_accept(bt_socket_class, fileno(fptr->f), (struct sockaddr *)&rcaddr, &addr_len);
+    sock2 = s_accept(bt_socket_class, fileno(fptr->f), (struct sockaddr *)buf, &len);
+    return rb_assoc_new(sock2, rb_str_new(buf, len));
+}
+
+
+static VALUE
+bt_socket_listen(sock, log)
+VALUE sock, log;
+{
+    OpenFile *fptr;
+    int backlog;
+
+    rb_secure(4);
+    backlog = NUM2INT(log);
+    GetOpenFile(sock, fptr);
+    if (listen(fileno(fptr->f), backlog) < 0)
+        rb_sys_fail("listen(2)");
+
+    return INT2FIX(0);
+}
+
+
+static VALUE bt_service_register(VALUE self, VALUE socket) {
+    VALUE registered = rb_iv_get(self, "@registered");
+    if (registered == Qfalse) {
+        uint32_t service_uuid_int[] = { 0, 0, 0, 0xABCD };
+        const char *service_name = STR2CSTR(rb_iv_get(self, "@name"));
+        const char *service_dsc = STR2CSTR(rb_iv_get(self, "@description"));
+        const char *service_prov = STR2CSTR(rb_iv_get(self, "@provider"));
+
+        uuid_t root_uuid, l2cap_uuid, rfcomm_uuid, svc_uuid;
+        sdp_list_t *l2cap_list = 0,
+                    *rfcomm_list = 0,
+                    *root_list = 0,
+                    *proto_list = 0,
+                    *access_proto_list = 0;
+        sdp_data_t *channel = 0, *psm = 0;
+
+        sdp_record_t *record = sdp_record_alloc();
+
+        // set the general service ID
+        sdp_uuid128_create( &svc_uuid, &service_uuid_int );
+        sdp_set_service_id( record, svc_uuid );
+
+        // make the service record publicly browsable
+        sdp_uuid16_create(&root_uuid, PUBLIC_BROWSE_GROUP);
+        root_list = sdp_list_append(0, &root_uuid);
+        sdp_set_browse_groups( record, root_list );
+
+        // set l2cap information
+        sdp_uuid16_create(&l2cap_uuid, L2CAP_UUID);
+        l2cap_list = sdp_list_append( 0, &l2cap_uuid );
+        if (bt_l2cap_socket_class == CLASS_OF(socket)) {
+            uint16_t l2cap_port = FIX2UINT(rb_iv_get(socket, "@port"));
+            psm = sdp_data_alloc(SDP_UINT16, &l2cap_port);
+            sdp_list_append(l2cap_list, psm);
+        }
+        proto_list = sdp_list_append( 0, l2cap_list );
+
+        // set rfcomm information
+        sdp_uuid16_create(&rfcomm_uuid, RFCOMM_UUID);
+        rfcomm_list = sdp_list_append( 0, &rfcomm_uuid );
+        if (bt_rfcomm_socket_class == CLASS_OF(socket)) {
+            uint16_t rfcomm_channel = FIX2UINT(rb_iv_get(socket, "@port"));
+            channel = sdp_data_alloc(SDP_UINT8, &rfcomm_channel);
+			sdp_list_append(rfcomm_list, channel);
+        }
+        sdp_list_append( proto_list, rfcomm_list );
+
+        // attach protocol information to service record
+        access_proto_list = sdp_list_append( 0, proto_list );
+        sdp_set_access_protos( record, access_proto_list );
+
+        // set the name, provider, and description
+        sdp_set_info_attr(record, service_name, service_prov, service_dsc);
+        int err = 0;
+        sdp_session_t *session = 0;
+
+        // connect to the local SDP server, register the service record, and
+        // disconnect
+        session = sdp_connect( BDADDR_ANY, BDADDR_LOCAL, SDP_RETRY_IF_BUSY );
+        err = sdp_record_register(session, record, 0);
+
+        // cleanup
+        sdp_data_free( channel );
+        sdp_list_free( l2cap_list, 0 );
+        sdp_list_free( rfcomm_list, 0 );
+        sdp_list_free( root_list, 0 );
+        sdp_list_free( access_proto_list, 0 );
+
+        struct bluetooth_service_struct *bss;
+        Data_Get_Struct(self, struct bluetooth_service_struct, bss);
+        bss->session = session;
+        // Do something
+        rb_iv_set(self, "@registered", Qtrue);
+    }
+    return Qnil;
+}
+
+static VALUE bt_service_unregister(VALUE self) {
+    VALUE registered = rb_iv_get(self, "@registered");
+    if (registered == Qtrue) {
+        struct bluetooth_service_struct *bss;
+        Data_Get_Struct(self, struct bluetooth_service_struct, bss);
+        sdp_close(bss->session);
+        bss->session = NULL;
+        // Do something
+        rb_iv_set(self, "@registered", Qfalse);
+    }
+    return registered;
 }
 
 static VALUE bt_service_registered(VALUE self) {
-	VALUE registered = rb_iv_get(self, "@registered");
-	if (registered == Qtrue) {
-		// Do something
-	}
-	return registered;
+    VALUE registered = rb_iv_get(self, "@registered");
+    if (registered == Qtrue) {
+        // Do something
+    }
+    return registered;
 }
 
 static VALUE bt_service_new(VALUE self, VALUE uuid, VALUE name, VALUE description, VALUE provider) {
@@ -82,7 +199,7 @@ static VALUE bt_service_new(VALUE self, VALUE uuid, VALUE name, VALUE descriptio
                                  struct bluetooth_service_struct, NULL,
                                  free, bss);
 
-    rb_iv_set(obj, "@uuid", name);
+    rb_iv_set(obj, "@uuid", uuid);
     rb_iv_set(obj, "@name", name);
     rb_iv_set(obj, "@description", description);
     rb_iv_set(obj, "@provider", provider);
@@ -149,6 +266,25 @@ bt_socket_s_for_fd(VALUE klass, VALUE fd)
 
     GetOpenFile(sock, fptr);
     return sock;
+}
+
+static VALUE
+bt_rfcomm_socket_bind(VALUE self, VALUE port)
+{
+    OpenFile *fptr;
+    int fd;
+
+    GetOpenFile(self, fptr);
+    fd = fileno(fptr->f);
+
+    struct sockaddr_rc loc_addr = { 0 };
+    loc_addr.rc_family = AF_BLUETOOTH;
+    loc_addr.rc_bdaddr = *BDADDR_ANY;
+    loc_addr.rc_channel = (uint8_t) FIX2UINT(port);
+
+    if (bind(fd, (struct sockaddr *)&loc_addr, sizeof(loc_addr)) >= 0)
+        rb_iv_set(self, "@port", port);
+    return INT2FIX(0);
 }
 
 static VALUE bt_socket_inspect(VALUE self)
@@ -271,4 +407,40 @@ static VALUE bt_devices_scan(VALUE self)
     free( ii );
     close( sock );
     return devices_array;
+}
+
+static VALUE
+s_accept(VALUE klass, int fd, struct sockaddr *sockaddr, socklen_t *len) {
+    int fd2;
+    int retry = 0;
+
+    rb_secure(3);
+retry:
+    rb_thread_wait_fd(fd);
+#if defined(_nec_ews)
+    fd2 = accept(fd, sockaddr, len);
+#else
+    TRAP_BEG;
+    fd2 = accept(fd, sockaddr, len);
+    TRAP_END;
+#endif
+    if (fd2 < 0) {
+        switch (errno) {
+        case EMFILE:
+        case ENFILE:
+            if (retry) break;
+            rb_gc();
+            retry = 1;
+            goto retry;
+        case EWOULDBLOCK:
+            break;
+        default:
+            if (!rb_io_wait_readable(fd)) break;
+            retry = 0;
+            goto retry;
+        }
+        rb_sys_fail(0);
+    }
+    if (!klass) return INT2NUM(fd2);
+    return bt_init_sock(rb_obj_alloc(klass), fd2);
 }
