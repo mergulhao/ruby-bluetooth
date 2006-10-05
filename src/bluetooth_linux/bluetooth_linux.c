@@ -4,6 +4,7 @@
 #include <rubysig.h>
 #include <util.h>
 #include "bluetooth_linux.h"
+#include <arpa/inet.h>
 
 VALUE bt_module;
 VALUE bt_device_class;
@@ -97,7 +98,12 @@ VALUE sock, log;
 static VALUE bt_service_register(VALUE self, VALUE socket) {
     VALUE registered = rb_iv_get(self, "@registered");
     if (registered == Qfalse) {
-        uint32_t service_uuid_int[] = { 0, 0, 0, 0xABCD };
+		VALUE port_v = rb_iv_get(socket, "@port");
+		if(Qnil == port_v) {				
+          rb_raise (rb_eIOError, "a bound socket must be passed");
+		}
+
+//        uint32_t service_uuid_int[] = { 0, 0, 0, 0xABCD };
         const char *service_name = STR2CSTR(rb_iv_get(self, "@name"));
         const char *service_dsc = STR2CSTR(rb_iv_get(self, "@description"));
         const char *service_prov = STR2CSTR(rb_iv_get(self, "@provider"));
@@ -113,7 +119,11 @@ static VALUE bt_service_register(VALUE self, VALUE socket) {
         sdp_record_t *record = sdp_record_alloc();
 
         // set the general service ID
-        sdp_uuid128_create( &svc_uuid, &service_uuid_int );
+//        sdp_uuid128_create( &svc_uuid, &service_uuid_int );
+        char *service_id = STR2CSTR(rb_iv_get(self, "@uuid"));
+        if(str2uuid(service_id, &svc_uuid) != 0) {
+          rb_raise (rb_eIOError, "a valid uuid must be passed");
+		}
         sdp_set_service_id( record, svc_uuid );
 
         // make the service record publicly browsable
@@ -125,7 +135,7 @@ static VALUE bt_service_register(VALUE self, VALUE socket) {
         sdp_uuid16_create(&l2cap_uuid, L2CAP_UUID);
         l2cap_list = sdp_list_append( 0, &l2cap_uuid );
         if (bt_l2cap_socket_class == CLASS_OF(socket)) {
-            uint16_t l2cap_port = FIX2UINT(rb_iv_get(socket, "@port"));
+            uint16_t l2cap_port = FIX2UINT(port_v);
             psm = sdp_data_alloc(SDP_UINT16, &l2cap_port);
             sdp_list_append(l2cap_list, psm);
         }
@@ -135,7 +145,7 @@ static VALUE bt_service_register(VALUE self, VALUE socket) {
         sdp_uuid16_create(&rfcomm_uuid, RFCOMM_UUID);
         rfcomm_list = sdp_list_append( 0, &rfcomm_uuid );
         if (bt_rfcomm_socket_class == CLASS_OF(socket)) {
-            uint16_t rfcomm_channel = FIX2UINT(rb_iv_get(socket, "@port"));
+            uint16_t rfcomm_channel = FIX2UINT(port_v);
             channel = sdp_data_alloc(SDP_UINT8, &rfcomm_channel);
 			sdp_list_append(rfcomm_list, channel);
         }
@@ -444,3 +454,84 @@ retry:
     if (!klass) return INT2NUM(fd2);
     return bt_init_sock(rb_obj_alloc(klass), fd2);
 }
+// Code from PyBlueZ
+int
+str2uuid(char *uuid_str, uuid_t *uuid)
+{
+    uint32_t uuid_int[4];
+    char *endptr;
+                                                                                                                        
+    if(strlen(uuid_str) == 36) {
+        // Parse uuid128 standard format: 12345678-9012-3456-7890-123456789012
+        char buf[9] = { 0 };
+                                                                                                                        
+        if(uuid_str[8] != '-' && uuid_str[13] != '-' &&
+           uuid_str[18] != '-'  && uuid_str[23] != '-') {
+            return -1;
+        }
+        // first 8-bytes
+        strncpy(buf, uuid_str, 8);
+        uuid_int[0] = htonl(strtoul(buf, &endptr, 16));
+        if(endptr != buf + 8) return -1;
+                                                                                                                        
+        // second 8-bytes
+        strncpy(buf, uuid_str+9, 4);
+        strncpy(buf+4, uuid_str+14, 4);
+        uuid_int[1] = htonl(strtoul( buf, &endptr, 16));
+        if(endptr != buf + 8) return -1;
+                                                                                                                        
+        // third 8-bytes
+        strncpy(buf, uuid_str+19, 4);
+        strncpy(buf+4, uuid_str+24, 4);
+        uuid_int[2] = htonl(strtoul(buf, &endptr, 16));
+        if(endptr != buf + 8) return -1;
+                                                                                                                        
+        // fourth 8-bytes
+	strncpy(buf, uuid_str+28, 8);
+	uuid_int[3] = htonl(strtoul(buf, &endptr, 16));
+        if(endptr != buf + 8) return -1;
+                                                                                                                        
+        if(uuid != NULL) sdp_uuid128_create(uuid, uuid_int);
+    } 
+
+    else if(strlen(uuid_str) == 8) {
+        // 32-bit reserved UUID
+        uint32_t i = strtoul(uuid_str, &endptr, 16);
+        if(endptr != uuid_str + 8) return -1;
+        if(uuid != NULL) sdp_uuid32_create(uuid, i);
+    }
+
+    else if(strlen(uuid_str) == 6) {
+        // 16-bit reserved UUID with 0x on front
+	if(uuid_str[0] == '0' && (uuid_str[1] == 'x' || uuid_str[1] == 'X')) {
+		// move chars up
+		uuid_str[0] = uuid_str[2];
+		uuid_str[1] = uuid_str[3];
+		uuid_str[2] = uuid_str[4];
+		uuid_str[3] = uuid_str[5];
+		uuid_str[4] = '\0';
+        	int i = strtol(uuid_str, &endptr, 16);
+        	if(endptr != uuid_str + 4) return -1;
+        	if(uuid != NULL) sdp_uuid16_create(uuid, i);
+	}
+
+	else return(-1);
+    }
+
+    else if(strlen(uuid_str) == 4) {
+        // 16-bit reserved UUID
+        int i = strtol(uuid_str, &endptr, 16);
+        if(endptr != uuid_str + 4) return -1;
+        if(uuid != NULL) sdp_uuid16_create(uuid, i);
+    }
+
+    else {
+        return -1;
+    }
+                                                                                                                        
+    return 0;
+}
+
+
+
+
