@@ -41,17 +41,19 @@ static VALUE bt_socket_s_for_fd(VALUE klass, VALUE fd);
 
 static VALUE bt_socket_listen(VALUE klass, VALUE backlog);
 
+static VALUE bt_socket_accept(VALUE sock);
+
 static VALUE bt_rfcomm_socket_init(int argc, VALUE *argv, VALUE sock);
 
 static VALUE bt_rfcomm_socket_connect(VALUE sock, VALUE host, VALUE port);
 
 static VALUE bt_rfcomm_socket_bind(VALUE sock, VALUE port);
 
-static VALUE bt_rfcomm_socket_accept(VALUE sock);
-
 static VALUE bt_l2cap_socket_init(int argc, VALUE *argv, VALUE sock);
 
 static VALUE bt_l2cap_socket_connect(VALUE sock, VALUE host, VALUE port);
+
+static VALUE bt_l2cap_socket_bind(VALUE sock, VALUE port);
 
 static VALUE bt_service_new(VALUE self, VALUE uuid, VALUE name, VALUE description, VALUE provider);
 

@@ -33,17 +33,18 @@ void Init_ruby_bluetooth()
     rb_define_method(bt_socket_class, "inspect", bt_socket_inspect, 0);
     rb_define_method(bt_socket_class, "for_fd", bt_socket_s_for_fd, 1);
     rb_define_method(bt_socket_class, "listen", bt_socket_listen, 1);
+    rb_define_method(bt_socket_class, "accept", bt_socket_accept, 0);
     rb_undef_method(bt_socket_class, "initialize");
 
     bt_rfcomm_socket_class = rb_define_class_under(bt_module, "RFCOMMSocket", bt_socket_class);
     rb_define_method(bt_rfcomm_socket_class, "initialize", bt_rfcomm_socket_init, -1);
     rb_define_method(bt_rfcomm_socket_class, "connect", bt_rfcomm_socket_connect, 2);
-    rb_define_method(bt_rfcomm_socket_class, "accept", bt_rfcomm_socket_accept, 0);
     rb_define_method(bt_rfcomm_socket_class, "bind", bt_rfcomm_socket_bind, 1);
 
     bt_l2cap_socket_class = rb_define_class_under(bt_module, "L2CAPSocket", bt_socket_class);
     rb_define_method(bt_l2cap_socket_class, "initialize", bt_l2cap_socket_init, -1);
     rb_define_method(bt_l2cap_socket_class, "connect", bt_l2cap_socket_connect, 2);
+    rb_define_method(bt_l2cap_socket_class, "bind", bt_l2cap_socket_bind, 1);
 
     bt_services_class = rb_define_class_under(bt_module, "Services", rb_cObject);
     //rb_define_singleton_method(bt_services_class, "scan", bt_services_scan, 3);
@@ -62,7 +63,7 @@ void Init_ruby_bluetooth()
 
 }
 
-static VALUE bt_rfcomm_socket_accept(VALUE self) {
+static VALUE bt_socket_accept(VALUE self) {
     OpenFile *fptr;
     VALUE sock2;
     char buf[1024];
@@ -291,6 +292,25 @@ bt_rfcomm_socket_bind(VALUE self, VALUE port)
     loc_addr.rc_family = AF_BLUETOOTH;
     loc_addr.rc_bdaddr = *BDADDR_ANY;
     loc_addr.rc_channel = (uint8_t) FIX2UINT(port);
+
+    if (bind(fd, (struct sockaddr *)&loc_addr, sizeof(loc_addr)) >= 0)
+        rb_iv_set(self, "@port", port);
+    return INT2FIX(0);
+}
+
+static VALUE
+bt_l2cap_socket_bind(VALUE self, VALUE port)
+{
+    OpenFile *fptr;
+    int fd;
+
+    GetOpenFile(self, fptr);
+    fd = fileno(fptr->f);
+
+    struct sockaddr_l2 loc_addr = { 0 };
+    loc_addr.l2_family = AF_BLUETOOTH;
+    loc_addr.l2_bdaddr = *BDADDR_ANY;
+    loc_addr.l2_psm = (uint8_t) FIX2UINT(port);
 
     if (bind(fd, (struct sockaddr *)&loc_addr, sizeof(loc_addr)) >= 0)
         rb_iv_set(self, "@port", port);
