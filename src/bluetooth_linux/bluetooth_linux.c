@@ -99,32 +99,32 @@ VALUE sock, log;
 static VALUE bt_service_register(VALUE self, VALUE socket) {
     VALUE registered = rb_iv_get(self, "@registered");
     if (registered == Qfalse) {
-		VALUE port_v = rb_iv_get(socket, "@port");
-		if(Qnil == port_v) {				
-          rb_raise (rb_eIOError, "a bound socket must be passed");
-		}
+        VALUE port_v = rb_iv_get(socket, "@port");
+        if(Qnil == port_v) {
+            rb_raise (rb_eIOError, "a bound socket must be passed");
+        }
 
-//        uint32_t service_uuid_int[] = { 0, 0, 0, 0xABCD };
+        //        uint32_t service_uuid_int[] = { 0, 0, 0, 0xABCD };
         const char *service_name = STR2CSTR(rb_iv_get(self, "@name"));
         const char *service_dsc = STR2CSTR(rb_iv_get(self, "@description"));
         const char *service_prov = STR2CSTR(rb_iv_get(self, "@provider"));
 
         uuid_t root_uuid, l2cap_uuid, rfcomm_uuid, svc_uuid;
         sdp_list_t *l2cap_list = 0,
-                    *rfcomm_list = 0,
-                    *root_list = 0,
-                    *proto_list = 0,
-                    *access_proto_list = 0;
+                                 *rfcomm_list = 0,
+                                                *root_list = 0,
+                                                             *proto_list = 0,
+                                                                           *access_proto_list = 0;
         sdp_data_t *channel = 0, *psm = 0;
 
         sdp_record_t *record = sdp_record_alloc();
 
         // set the general service ID
-//        sdp_uuid128_create( &svc_uuid, &service_uuid_int );
+        //        sdp_uuid128_create( &svc_uuid, &service_uuid_int );
         char *service_id = STR2CSTR(rb_iv_get(self, "@uuid"));
         if(str2uuid(service_id, &svc_uuid) != 0) {
-          rb_raise (rb_eIOError, "a valid uuid must be passed");
-		}
+            rb_raise (rb_eIOError, "a valid uuid must be passed");
+        }
         sdp_set_service_id( record, svc_uuid );
 
         // make the service record publicly browsable
@@ -148,7 +148,7 @@ static VALUE bt_service_register(VALUE self, VALUE socket) {
         if (bt_rfcomm_socket_class == CLASS_OF(socket)) {
             uint16_t rfcomm_channel = FIX2UINT(port_v);
             channel = sdp_data_alloc(SDP_UINT8, &rfcomm_channel);
-			sdp_list_append(rfcomm_list, channel);
+            sdp_list_append(rfcomm_list, channel);
         }
         sdp_list_append( proto_list, rfcomm_list );
 
@@ -167,7 +167,9 @@ static VALUE bt_service_register(VALUE self, VALUE socket) {
         err = sdp_record_register(session, record, 0);
 
         // cleanup
-        sdp_data_free( channel );
+        if (channel != 0) {
+            sdp_data_free( channel );
+        }
         sdp_list_free( l2cap_list, 0 );
         sdp_list_free( rfcomm_list, 0 );
         sdp_list_free( root_list, 0 );
@@ -480,39 +482,39 @@ str2uuid(char *uuid_str, uuid_t *uuid)
 {
     uint32_t uuid_int[4];
     char *endptr;
-                                                                                                                        
+
     if(strlen(uuid_str) == 36) {
         // Parse uuid128 standard format: 12345678-9012-3456-7890-123456789012
         char buf[9] = { 0 };
-                                                                                                                        
+
         if(uuid_str[8] != '-' && uuid_str[13] != '-' &&
-           uuid_str[18] != '-'  && uuid_str[23] != '-') {
+                uuid_str[18] != '-'  && uuid_str[23] != '-') {
             return -1;
         }
         // first 8-bytes
         strncpy(buf, uuid_str, 8);
         uuid_int[0] = htonl(strtoul(buf, &endptr, 16));
         if(endptr != buf + 8) return -1;
-                                                                                                                        
+
         // second 8-bytes
         strncpy(buf, uuid_str+9, 4);
         strncpy(buf+4, uuid_str+14, 4);
         uuid_int[1] = htonl(strtoul( buf, &endptr, 16));
         if(endptr != buf + 8) return -1;
-                                                                                                                        
+
         // third 8-bytes
         strncpy(buf, uuid_str+19, 4);
         strncpy(buf+4, uuid_str+24, 4);
         uuid_int[2] = htonl(strtoul(buf, &endptr, 16));
         if(endptr != buf + 8) return -1;
-                                                                                                                        
+
         // fourth 8-bytes
-	strncpy(buf, uuid_str+28, 8);
-	uuid_int[3] = htonl(strtoul(buf, &endptr, 16));
+        strncpy(buf, uuid_str+28, 8);
+        uuid_int[3] = htonl(strtoul(buf, &endptr, 16));
         if(endptr != buf + 8) return -1;
-                                                                                                                        
+
         if(uuid != NULL) sdp_uuid128_create(uuid, uuid_int);
-    } 
+    }
 
     else if(strlen(uuid_str) == 8) {
         // 32-bit reserved UUID
@@ -523,19 +525,19 @@ str2uuid(char *uuid_str, uuid_t *uuid)
 
     else if(strlen(uuid_str) == 6) {
         // 16-bit reserved UUID with 0x on front
-	if(uuid_str[0] == '0' && (uuid_str[1] == 'x' || uuid_str[1] == 'X')) {
-		// move chars up
-		uuid_str[0] = uuid_str[2];
-		uuid_str[1] = uuid_str[3];
-		uuid_str[2] = uuid_str[4];
-		uuid_str[3] = uuid_str[5];
-		uuid_str[4] = '\0';
-        	int i = strtol(uuid_str, &endptr, 16);
-        	if(endptr != uuid_str + 4) return -1;
-        	if(uuid != NULL) sdp_uuid16_create(uuid, i);
-	}
+        if(uuid_str[0] == '0' && (uuid_str[1] == 'x' || uuid_str[1] == 'X')) {
+            // move chars up
+            uuid_str[0] = uuid_str[2];
+            uuid_str[1] = uuid_str[3];
+            uuid_str[2] = uuid_str[4];
+            uuid_str[3] = uuid_str[5];
+            uuid_str[4] = '\0';
+            int i = strtol(uuid_str, &endptr, 16);
+            if(endptr != uuid_str + 4) return -1;
+            if(uuid != NULL) sdp_uuid16_create(uuid, i);
+        }
 
-	else return(-1);
+        else return(-1);
     }
 
     else if(strlen(uuid_str) == 4) {
@@ -548,7 +550,7 @@ str2uuid(char *uuid_str, uuid_t *uuid)
     else {
         return -1;
     }
-                                                                                                                        
+
     return 0;
 }
 
